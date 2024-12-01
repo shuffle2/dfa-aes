@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-from random import randint
-import argparse, sys
+from random import randrange
+import argparse, sys, os
 
 sbox = [0x63,0x7c,0x77,0x7b,0xf2,0x6b,0x6f,0xc5,0x30,0x01,0x67,0x2b,0xfe,0xd7,0xab,0x76,
         0xca,0x82,0xc9,0x7d,0xfa,0x59,0x47,0xf0,0xad,0xd4,0xa2,0xaf,0x9c,0xa4,0x72,0xc0,
@@ -45,7 +45,7 @@ def xtime(a):
 def mixcolumn(b):
     t = b[0] ^ b[1] ^ b[2] ^ b[3]
     u = b[0]
-    
+
     v = b[0] ^ b[1]
     v = xtime(v)
     b[0] = b[0] ^ v ^ t
@@ -61,9 +61,9 @@ def mixcolumn(b):
     v = b[3] ^ u
     v = xtime(v)
     b[3] = b[3] ^ v ^ t
-    
-    
-def imixcolumn(b):  
+
+
+def imixcolumn(b):
     # preprocessing
     u = b[0] ^ b[2]
     u = xtime(xtime(u))
@@ -77,7 +77,7 @@ def imixcolumn(b):
     # mixcolumn
     mixcolumn(b)
 
-    
+
 def MC(state):
     for col in state:
         mixcolumn(col)
@@ -87,13 +87,13 @@ def iMC(state):
     for col in state:
         imixcolumn(col)
 
-    
+
 def SR(state):
     state[0][1], state[1][1], state[2][1], state[3][1] = state[1][1], state[2][1], state[3][1], state[0][1]
     state[0][2], state[1][2], state[2][2], state[3][2] = state[2][2], state[3][2], state[0][2], state[1][2]
     state[0][3], state[1][3], state[2][3], state[3][3] = state[3][3], state[0][3], state[1][3], state[2][3]
 
-    
+
 def iSR(state):
     state[0][1], state[1][1], state[2][1], state[3][1] = state[3][1], state[0][1], state[1][1], state[2][1]
     state[0][2], state[1][2], state[2][2], state[3][2] = state[2][2], state[3][2], state[0][2], state[1][2]
@@ -104,7 +104,7 @@ def SB(state):
     for i in range(4):
         state[i] = [sbox[b] for b in state[i]]
 
-    
+
 def iSB(state):
     for i in range(4):
         state[i] = [isbox[b] for b in state[i]]
@@ -114,38 +114,48 @@ def AK(state, roundkeys, rnd):
     for i in range(4):
         for j in range(4):
             state[i][j] ^= roundkeys[rnd*4 + i][j]
-            
-    
+
+
 def key_expansion(masterkey):
     roundkeys = [masterkey[i:i+4] for i in range(0, 16, 4)]
     for rnd in range(10):
         for j in range(4):
-            tmp = roundkeys[-1].copy()
+            tmp = roundkeys[-1]
             if j == 0:
                 tmp = tmp[1:] + tmp[:1]
                 tmp = [sbox[t] for t in tmp]
                 tmp[0] ^= rcon[rnd]
-            roundkeys.append([tmp[i] ^ roundkeys[rnd*4 + j][i] for i in range(4)])
-            
+            rk = [tmp[i] ^ roundkeys[rnd*4 + j][i] for i in range(4)]
+            roundkeys.append(bytes(rk))
+
     return roundkeys
 
 
-def encrypt_aes(plaintext, masterkey, fault_round=-1, fault_pos=-1, fault=-1):
+def encrypt_aes(plaintext, masterkey, **kwargs):
+    fault_round = kwargs.get('fault_round')
+    fault_pos = kwargs.get('fault_pos')
+    fault = kwargs.get('fault')
+    dump_rk = kwargs.get('dump_rk', False)
+
     roundkeys = key_expansion(masterkey)
-    
-    state = [plaintext[i:i+4] for i in range(0,16,4)]        
+    if dump_rk:
+        print('roundkeys')
+        for i in range(0, len(roundkeys), 4):
+            print(f'{i:2}', b''.join(roundkeys[i:i+4]).hex())
+
+    state = [bytearray(plaintext[i:i+4]) for i in range(0,16,4)]
     AK(state, roundkeys, 0)
-        
+
     # round 1 to nr-1
     for rnd in range(1, 10):
         SB(state)
         SR(state)
         if rnd == fault_round:
             state[fault_pos // 4][fault_pos % 4] ^= fault
-                
+
         MC(state)
         AK(state, roundkeys, rnd)
-        
+
     # last round
     SB(state)
     SR(state)
@@ -179,25 +189,25 @@ if __name__ == "__main__":
         args.keeppos = True
 
     # generate master key and pair of correct plaintext/ciphertext
-    masterkey = [randint(0, 255) for i in range(16)]
-    pt0 = [randint(0, 255) for i in range(16)]
-    ct0 = bytes(encrypt_aes(pt0, masterkey))
-    pt0 = bytes(pt0)
-    
+    zero_block=b'\0'*16
+    masterkey = zero_block#os.urandom(16)
+    pt0 = zero_block#os.urandom(16)
+    ct0 = bytes(encrypt_aes(pt0, masterkey, dump_rk=False))
+
     print(f'{pt0.hex()},{ct0.hex()}')
 
     # generate pairs of correct/faulty ciphertexts
     if args.rnd == 8:
         for i in range(args.n):
-            pt = [randint(0, 255) for i in range(16)]
-            fault_pos = randint(0, 15)
+            pt = os.urandom(16)
+            fault_pos = randrange(0, 16)
             if args.bitflip:
-                fault = 1 << randint(0, 7)
+                fault = 1 << randrange(0, 8)
             else:
-                fault = randint(1, 255)
+                fault = randrange(1, 256)
 
             ct = bytes(encrypt_aes(pt, masterkey))
-            fct = bytes(encrypt_aes(pt, masterkey, 8, fault_pos, fault))
+            fct = bytes(encrypt_aes(pt, masterkey, fault_round=8, fault_pos=fault_pos, fault=fault))
 
             s = f'{ct.hex()},{fct.hex()}'
             if args.keeppos:
@@ -208,16 +218,16 @@ if __name__ == "__main__":
     else:
         for i in range(args.n):
             # four pairs with a fault in a different column
-            for j in range(4):    
-                fault_pos = randint(4*j, 4*j + 3)
+            for j in range(4):
+                fault_pos = randrange(4*j, 4*(j + 1))
                 if args.bitflip:
-                    fault = 1 << randint(0, 7)
+                    fault = 1 << randrange(0, 8)
                 else:
-                    fault = randint(1, 255)
+                    fault = randrange(1, 256)
 
-                pt = [randint(0, 255) for i in range(16)]                    
+                pt = os.urandom(16)
                 ct = bytes(encrypt_aes(pt, masterkey))
-                fct = bytes(encrypt_aes(pt, masterkey, 9, fault_pos, fault))
+                fct = bytes(encrypt_aes(pt, masterkey, fault_round=9, fault_pos=fault_pos, fault=fault))
 
                 s = f'{ct.hex()},{fct.hex()}'
                 if args.keeppos:
