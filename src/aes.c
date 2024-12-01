@@ -72,13 +72,13 @@ void invSubBytes(byte state[16]) {
 
 void shiftRows(byte state[16]) {
   byte tmp1, tmp2;
-  
+
   tmp1 = state[1];
   state[1] = state[5];
   state[5] = state[9];
   state[9] = state[13];
   state[13] = tmp1;
-  
+
   tmp1 = state[2];
   tmp2 = state[6];
   state[2] = state[10];
@@ -95,7 +95,7 @@ void shiftRows(byte state[16]) {
 
 void invShiftRows(byte state[16]) {
   byte tmp1, tmp2;
-  
+
   tmp1 = state[13];
   state[13] = state[9];
   state[9] = state[5];
@@ -118,10 +118,10 @@ void invShiftRows(byte state[16]) {
 
 void mixColumn(byte a[4]) {
   byte t, u, v;
-  
+
   t = a[0] ^ a[1] ^ a[2] ^ a[3];
   u = a[0];
-  
+
   v = a[0] ^ a[1];
   v = XTIME(v);
   a[0] = a[0] ^ v ^ t;
@@ -133,7 +133,7 @@ void mixColumn(byte a[4]) {
   v = a[2] ^ a[3];
   v = XTIME(v);
   a[2] = a[2] ^ v ^ t;
-  
+
   v = a[3] ^ u;
   v = XTIME(v);
   a[3] = a[3] ^ v ^ t;
@@ -157,16 +157,16 @@ void invMixColumn(byte a[4]) {
   v = a[1] ^ a[3];
   v = XTIME(v);
   v = XTIME(v);
-  
+
   a[0] = a[0] ^ u;
   a[1] = a[1] ^ v;
   a[2] = a[2] ^ u;
   a[3] = a[3] ^ v;
-  
+
   /* mix column */
   t = a[0] ^ a[1] ^ a[2] ^ a[3];
   u = a[0];
-  
+
   v = a[0] ^ a[1];
   v = XTIME(v);
   a[0] = a[0] ^ v ^ t;
@@ -178,7 +178,7 @@ void invMixColumn(byte a[4]) {
   v = a[2] ^ a[3];
   v = XTIME(v);
   a[2] = a[2] ^ v ^ t;
-  
+
   v = a[3] ^ u;
   v = XTIME(v);
   a[3] = a[3] ^ v ^ t;
@@ -194,11 +194,11 @@ void invMixColumns(byte state[16]) {
 
 void keyExpansion(const byte masterkey[16], byte subkeys[176]) {
   int i;
-  
+
   for (i = 0; i < 16; i++) {
     subkeys[i] = masterkey[i];
   }
-  
+
   for (i = 16; i < 176; i += 4) {
     if (i % 16 == 0) {
       subkeys[i]     = sbox[subkeys[i - 3]] ^ rcon[(i >> 4) - 1] ^ subkeys[i - 16];
@@ -211,7 +211,7 @@ void keyExpansion(const byte masterkey[16], byte subkeys[176]) {
       subkeys[i + 1] = subkeys[i - 15] ^ subkeys[i - 3];
       subkeys[i + 2] = subkeys[i - 14] ^ subkeys[i - 2];
       subkeys[i + 3] = subkeys[i - 13] ^ subkeys[i - 1];
-    } 
+    }
   }
 }
 
@@ -219,14 +219,14 @@ void encrypt_aes(const byte input[16], byte output[16],
                  const byte subkeys[176], const int NR) {
   int i, round;
   byte state[16];
-  
+
   memcpy(state, input, 16);
-  
+
   /* add the first round key */
   for (i = 0; i < 16 ; i++) {
     state[i] ^= subkeys[i];
   }
-  
+
   /* rounds 1 to 9 */
   for (round = 1; round < NR; round++) {
     subBytes(state);
@@ -236,13 +236,13 @@ void encrypt_aes(const byte input[16], byte output[16],
       state[i] ^= subkeys[round*16 + i];
     }
   }
-  
+
   /* last round */
   subBytes(state);
   shiftRows(state);
   for (i = 0; i < 16; i++) {
     state[i] ^= subkeys[160 + i];
   }
-  
+
   memcpy(output, state, 16);
 }

@@ -31,7 +31,7 @@ byte char_to_nibble(const char c) {
 }
 
 void hex_to_bytes(const char *a, const int len, byte *b) {
-  int i; 
+  int i;
   for (i = 0; i < len; i += 2) {
     b[i >> 1] = (char_to_nibble(a[i]) << 4) | char_to_nibble(a[i + 1]);
   }
@@ -43,7 +43,7 @@ int readfile(const char *filename, byte pt[16], byte ct[16],
   FILE *fp;
   char buffer[128];
   char *tmp;
-  
+
   fp = fopen(filename, "r");
   if (fp == NULL) {
     return -1;
@@ -53,7 +53,7 @@ int readfile(const char *filename, byte pt[16], byte ct[16],
   fgets(buffer, 128, fp);
   hex_to_bytes(buffer, 32, pt);
   hex_to_bytes(buffer + 33, 32, ct);
-  
+
   *len = 0;
 
   while (fgets(buffer, 128, fp)) {
@@ -85,7 +85,7 @@ int readfile(const char *filename, byte pt[16], byte ct[16],
 
 
 int main(int argc, char *argv[]) {
-  
+
   byte pt[16], ct[16], masterkey[16];
   byte ct_list[PAIRS_MAX][16], fct_list[PAIRS_MAX][16];
   int fault_list[PAIRS_MAX], fault_pos_list[PAIRS_MAX];
@@ -94,11 +94,11 @@ int main(int argc, char *argv[]) {
   int bitflip = 0;
   char options[] = "89bi:";
   char *filename = NULL;
-  
+
   opt = getopt(argc, argv, options);
   while (opt != -1) {
     switch(opt) {
-      
+
     case '8':
       if (mode == -1) {
         mode = DFA_ROUND_8;
@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
     case 'i':
       filename = optarg;
       break;
-      
+
     case '?':
       print_instructions("Options are missing");
       exit(EXIT_FAILURE);
@@ -131,17 +131,17 @@ int main(int argc, char *argv[]) {
     }
     opt = getopt(argc, argv, options);
   }
-  
+
   if (mode == -1) {
     print_instructions("Option -8 or -9 missing");
     exit(EXIT_FAILURE);
   }
-  
+
   if (filename == NULL) {
     print_instructions("Please provide an input file");
     exit(EXIT_FAILURE);
   }
-  
+
   /* load data from file */
   err = readfile(filename, pt, ct, ct_list, fct_list,
                  fault_pos_list, fault_list, &len);
@@ -164,9 +164,9 @@ int main(int argc, char *argv[]) {
     else {
       found = r8_key_recovery(pt, ct, ct_list, fct_list, fault_pos_list,
                               fault_list, len, masterkey);
-    } 
+    }
   }
-  
+
   /* print master key if found */
   if (found == 0) {
     printf("The attack was unsuccessful: check your data.\n");
@@ -184,5 +184,3 @@ int main(int argc, char *argv[]) {
   
   return 0;
 }
-  
-  
