@@ -181,6 +181,6 @@ int main(int argc, char *argv[]) {
   else {
     printf("Something is wrong somewhere.\n");
   }
-  
-  return 0;
+
+  return (found == 1) ? 0 : 1;
 }
