@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <wmmintrin.h>
 #include "dfa.h"
 
 #ifdef _OPENMP
@@ -71,10 +72,10 @@ int r8_exhaustive_search(const byte pt0[16], const byte ct0[16],
   int i, j, k, l, ii;
   int found = 0;
   byte subkey10[16];
-  byte subkey9[16];
+  _Alignas(16) byte subkey9[16];
   byte subkeys[176];
-  byte cttmp[16];
-  byte fcttmp[16];
+  _Alignas(16) byte cttmp[16];
+  _Alignas(16) byte fcttmp[16];
   byte ctcmp[16];
   byte diff[4];
 
@@ -83,7 +84,7 @@ int r8_exhaustive_search(const byte pt0[16], const byte ct0[16],
 #endif
   for (i = 0; i < cand_len[0]; i++) {
     if (found) { continue; }
-    fprintf(stderr, "Progress: %d/%d\n", i + 1, cand_len[0]);
+    //fprintf(stderr, "Progress: %d/%d\n", i + 1, cand_len[0]);
     subkey10[0]  = TAKEBYTE(candidates[0][i], 0);
     subkey10[13] = TAKEBYTE(candidates[0][i], 1);
     subkey10[10] = TAKEBYTE(candidates[0][i], 2);
@@ -113,17 +114,28 @@ int r8_exhaustive_search(const byte pt0[16], const byte ct0[16],
             cttmp[ii]  = ct[ii]  ^ subkey10[ii];
             fcttmp[ii] = fct[ii] ^ subkey10[ii];
           }
+          /* vvv aesdeclast
           invShiftRows(cttmp);
           invSubBytes(cttmp);
           invShiftRows(fcttmp);
-          invSubBytes(fcttmp);      
+          invSubBytes(fcttmp);
           for (ii = 0; ii < 16; ii++) {
             cttmp[ii]  ^= subkey9[ii];
             fcttmp[ii] ^= subkey9[ii];
           }
+          // ^^^ aesdeclast */
+          __m128i x = _mm_load_si128((const __m128i *)cttmp);
+          x = _mm_aesdeclast_si128(x, _mm_load_si128((const __m128i *)subkey9));
+          __m128i y = _mm_load_si128((const __m128i *)fcttmp);
+          y = _mm_aesdeclast_si128(y, _mm_load_si128((const __m128i *)subkey9));
+
+          /* vvv aesimc
           invMixColumns(cttmp);
           invMixColumns(fcttmp);
-          
+          // ^^^ aesimc */
+          _mm_store_si128((__m128i *)cttmp, _mm_aesimc_si128(x));
+          _mm_store_si128((__m128i *)fcttmp, _mm_aesimc_si128(y));
+
           for (ii = 0; ii < 4; ii++) {
             diff[ii] = invsbox[cttmp[POSITIONS[col8][ii]]]
               ^ invsbox[fcttmp[POSITIONS[col8][ii]]];
